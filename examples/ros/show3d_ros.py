@@ -4,14 +4,16 @@ import cv2
 import os
 import open3d
 import copy
-from gelsight import gsdevice
-from gelsight import gs3drecon
+# from gelsight import gsdevice
+# from gelsight import gs3drecon
 import rospy
 from sensor_msgs.msg import PointCloud2
 import std_msgs.msg
 import sensor_msgs.point_cloud2 as pcl2
 
-
+import gsdevice
+import gs3drecon
+import ros_numpy
 
 def get_diff_img(img1, img2):
     return np.clip((img1.astype(int) - img2.astype(int)), 0, 255).astype(np.uint8)
@@ -127,6 +129,13 @@ def main(argv):
                 gelpcd.points = open3d.utility.Vector3dVector(points)
                 gelpcdros = pcl2.create_cloud_xyz32(header, np.asarray(gelpcd.points))
                 gelpcd_pub.publish(gelpcdros)
+
+
+                xyz_array = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(gelpcdros)
+                np.shape(xyz_array)
+
+                print(np.shape(xyz_array))
+
 
             #if cv2.waitKey(1) & 0xFF == ord('q'):
             #    break
