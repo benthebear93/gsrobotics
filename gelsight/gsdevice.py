@@ -98,9 +98,7 @@ class Camera:
         self.data = f0
         return self.data
 
-
     def get_image(self):
-
         ret, f0 = self.cam.read()
         if ret:
             f0 = resize_crop_mini(f0, self.imgh, self.imgw)
@@ -122,6 +120,17 @@ class Camera:
 
     def stop_video(self):
         cv2.destroyAllWindows()
+
+    def get_image_two(self):
+        ret, f3 = self.cam.read()
+        # if ret:
+        #     f3 = resize_crop_mini(f3, self.imgh, self.imgw)
+        # else:
+        #     print('ERROR! reading image from camera!')
+
+        self.data_1 = ret
+        self.data_2 = f3
+        return self.data_1,self.data_2
 
 
 

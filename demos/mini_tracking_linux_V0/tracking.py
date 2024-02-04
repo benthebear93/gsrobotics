@@ -7,6 +7,9 @@ import marker_detection
 import sys
 import setting
 import os
+import rospy
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
 
 def find_cameras():
     # checks the first 10 indexes.
@@ -91,27 +94,27 @@ def main(argv):
     SAVE_ONE_IMG_FLAG = False
     SAVE_DATA_FLAG = False
 
-    if SAVE_ONE_IMG_FLAG:
-        sn = input('Please enter the serial number of the gel \n')
-        #sn = str(5)
-        viddir = outdir + 'vids/'
-        imgdir = outdir + 'imgs/'
-        resultsfile = outdir + 'marker_qc_results.txt'
-        vidfile = viddir + sn + '.avi'
-        imgonlyfile = imgdir + sn + '.png'
-        maskfile = imgdir + 'mask_' + sn + '.png'
-        # check to see if the directory exists, if not create it
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-        if not os.path.exists(viddir):
-            os.mkdir(viddir)
-        if not os.path.exists(imgdir):
-            os.mkdir(imgdir)
-
-    if SAVE_DATA_FLAG:
-        datadir = outdir + 'data'
-        datafilename = datadir + 'marker_locations.txt'
-        datafile = open(datafilename,"a")
+    # if SAVE_ONE_IMG_FLAG:
+    #     sn = input('Please enter the serial number of the gel \n')
+    #     #sn = str(5)
+    #     viddir = outdir + 'vids/'
+    #     imgdir = outdir + 'imgs/'
+    #     resultsfile = outdir + 'marker_qc_results.txt'
+    #     vidfile = viddir + sn + '.avi'
+    #     imgonlyfile = imgdir + sn + '.png'
+    #     maskfile = imgdir + 'mask_' + sn + '.png'
+    #     # check to see if the directory exists, if not create it
+    #     if not os.path.exists(outdir):
+    #         os.mkdir(outdir)
+    #     if not os.path.exists(viddir):
+    #         os.mkdir(viddir)
+    #     if not os.path.exists(imgdir):
+    #         os.mkdir(imgdir)
+    #
+    # if SAVE_DATA_FLAG:
+    #     datadir = outdir + 'data'
+    #     datafilename = datadir + 'marker_locations.txt'
+    #     datafile = open(datafilename,"a")
 
     # if len(sys.argv) > 1:
     #     if sys.argv[1] == 'calibrate':
@@ -122,17 +125,17 @@ def main(argv):
     WHILE_COND = cap.isOpened()
 
     # set the format into MJPG in the FourCC format
-    cap.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc('M','J','P','G'))
+    #cap.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc('M','J','P','G'))
 
     # Resize scale for faster image processing
     setting.init()
 
-    if SAVE_VIDEO_FLAG:
-        # Below VideoWriter object will create a frame of above defined The output is stored in 'filename.avi' file.
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        # fourcc = cv2.VideoWriter_fourcc('p', 'n', 'g', ' ')
-        # fourcc = cv2.VideoWriter_fourcc(*'jp2','')
-        out = cv2.VideoWriter(vidfile, fourcc, 25, (imgw, imgh), isColor=True)
+    # if SAVE_VIDEO_FLAG:
+    #     # Below VideoWriter object will create a frame of above defined The output is stored in 'filename.avi' file.
+    #     fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    #     # fourcc = cv2.VideoWriter_fourcc('p', 'n', 'g', ' ')
+    #     # fourcc = cv2.VideoWriter_fourcc(*'jp2','')
+    #     out = cv2.VideoWriter(vidfile, fourcc, 25, (imgw, imgh), isColor=True)
 
     frame0 = None
 
@@ -183,9 +186,9 @@ def main(argv):
 
     radius ,coverage = compute_tracker_gel_stats(mask)
 
-    if SAVE_ONE_IMG_FLAG:
-        fresults = open(resultsfile, "a")
-        fresults.write(f"{sn} {float(f'{dx_:.2f}')} {float(f'{dy_:.2f}')} {float(f'{radius*2:.2f}')} {float(f'{coverage:.2f}')}\n")
+    # if SAVE_ONE_IMG_FLAG:
+    #     fresults = open(resultsfile, "a")
+    #     fresults.write(f"{sn} {float(f'{dx_:.2f}')} {float(f'{dy_:.2f}')} {float(f'{radius*2:.2f}')} {float(f'{coverage:.2f}')}\n")
 
 
     # cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
@@ -197,6 +200,13 @@ def main(argv):
     m = find_marker.Matching(N_,M_,fps_,x0_,y0_,dx_,dy_)
 
     frameno = 0
+    gs = {}
+    gs['gsmini_maker_img_pub'] = [0] * 1
+    gs['maker_img_msg'] = [0] * 1
+    rospy.init_node('showmini3dros', anonymous=True)
+    gs['gsmini_maker_img_pub'][0] = rospy.Publisher("/gsmini_rawimg_maker_img_", Image, queue_size=1)
+
+    cvbridge = CvBridge()
     try:
         while (WHILE_COND):
 
@@ -272,16 +282,22 @@ def main(argv):
             bigmask = cv2.resize(mask_img*255, (mask_img.shape[1]*3, mask_img.shape[0]*3))
             cv2.imshow('mask', bigmask)
 
-            if SAVE_ONE_IMG_FLAG:
-                cv2.imwrite(imgonlyfile, raw_img)
-                cv2.imwrite(maskfile, mask*255)
-                SAVE_ONE_IMG_FLAG = False
 
-            if calibrate:
-                ### Display the mask
-                cv2.imshow('mask',mask_img*255)
-            if SAVE_VIDEO_FLAG:
-                out.write(frame)
+            gs['maker_img_msg'][0] = cvbridge.cv2_to_imgmsg(bigframe, encoding="passthrough")
+            gs['maker_img_msg'][0].header.stamp = rospy.Time.now()
+            gs['maker_img_msg'][0].header.frame_id = 'map'
+            gs['gsmini_maker_img_pub'][0].publish(gs['maker_img_msg'][0])
+
+            # if SAVE_ONE_IMG_FLAG:
+            #     cv2.imwrite(imgonlyfile, raw_img)
+            #     cv2.imwrite(maskfile, mask*255)
+            #     SAVE_ONE_IMG_FLAG = False
+            #
+            # if calibrate:
+            #     ### Display the mask
+            #     cv2.imshow('mask',mask_img*255)
+            # if SAVE_VIDEO_FLAG:
+            #     out.write(frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                break
 
