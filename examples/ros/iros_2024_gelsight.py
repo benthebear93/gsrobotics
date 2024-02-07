@@ -24,6 +24,7 @@ import time
 import marker_detection
 import find_marker
 
+from std_msgs.msg import Float64
 
 def get_diff_img(img1, img2):
     return np.clip((img1.astype(int) - img2.astype(int)), 0, 255).astype(np.uint8)
@@ -156,6 +157,8 @@ def main(argv):
 
     gs['gsmini_maker_img_pub'][0] = rospy.Publisher("/gsmini_rawimg_maker_img_", Image, queue_size=1)
 
+    gs_max_z_pub = rospy.Publisher("/gsmini_max_z", Float64, queue_size=1)
+    gs_max_z_msg = 0
     #Marker tracking
     # Resize scale for faster image processing
     setting.init()
@@ -329,7 +332,12 @@ def main(argv):
 
                 # to xyz array
                 xyz_array = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(gelpcdros)
-                np.shape(xyz_array)
+                gs_max_z_msg = np.max(xyz_array[:,2])
+                gs_max_z_pub.publish(gs_max_z_msg)
+
+                #print(type(xyz_array))
+                #print('MAX Z:: ',np.max(xyz_array[:,2]))
+                #np.shape(xyz_array)
 
             #if cv2.waitKey(1) & 0xFF == ord('q'):
             #    break
