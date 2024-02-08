@@ -63,7 +63,7 @@ def compute_tracker_gel_stats(thresh):
 
 def main(argv):
 
-    rospy.init_node('showmini3dros', anonymous=True)
+    rospy.init_node('showmini3dros_1', anonymous=True)
 
     #2d image
     NUM_SENSORS = 1
@@ -76,6 +76,9 @@ def main(argv):
 
     gs['gsmini_maker_img_pub'] = [0] * 1
     gs['maker_img_msg'] = [0] * 1
+
+    gs['gsmini_depth_img_pub_l'] = [0] * 1
+    gs['gsmini_depth_img_msg_l'] = [0] * 1
 
     # Set flags
     SAVE_VIDEO_FLAG = True
@@ -157,6 +160,7 @@ def main(argv):
 
     gs['gsmini_maker_img_pub'][0] = rospy.Publisher("/gsmini_rawimg_maker_img_", Image, queue_size=1)
 
+    gs['gsmini_depth_img_pub_l'][0] = rospy.Publisher("/gsmini_depth_img_l", Image, queue_size=1)
     gs_max_z_pub = rospy.Publisher("/gsmini_max_z", Float64, queue_size=1)
     gs_max_z_msg = 0
     #Marker tracking
@@ -283,6 +287,7 @@ def main(argv):
 
             #mask_img = mask.astype(frame[0].dtype)
             mask_img = np.asarray(mask)
+            #print(np.shape(mask))
             bigframe_marker = cv2.resize(frame, (frame.shape[1] * 3, frame.shape[0] * 3))
             #cv2.imshow('frame', bigframe_marker)
             #bigmask = cv2.resize(mask_img * 255, (mask_img.shape[1] * 3, mask_img.shape[0] * 3))
@@ -313,6 +318,28 @@ def main(argv):
 
             #compute the depth map
             dm = nn.get_depthmap(f1, MASK_MARKERS_FLAG)
+            #bigframe_dm = cv2.resize(dm*255, (dev.imgw,dev.imgh))
+            cv2.imshow('Image', dm)
+
+            dm_image = (-dm).astype(np.uint8)
+            #im = bridge.cv2_to_imgmsg(image, encoding="mono8")
+
+            gs['gsmini_depth_img_msg_l'][0] = cvbridge.cv2_to_imgmsg(dm_image, encoding="mono8")
+            gs['gsmini_depth_img_msg_l'][0].header.stamp = rospy.Time.now()
+            gs['gsmini_depth_img_msg_l'][0].header.frame_id = 'map'
+
+            gs['gsmini_depth_img_pub_l'][0].publish(gs['gsmini_depth_img_msg_l'][0])
+
+
+            #f_stream = dm
+            #f_stream = cv2.resize(f_stream, (dev.imgw,dev.imgh))
+
+            # for i in range(NUM_SENSORS):
+            #     gs['img_msg'][i] = cvbridge.cv2_to_imgmsg(dm, encoding="passthrough")
+            #     gs['img_msg'][i].header.stamp = rospy.Time.now()
+            #     gs['img_msg'][i].header.frame_id = 'map'
+            #     gs['gsmini_pub'][i].publish(gs['img_msg'][i])
+
 
             ''' Display the results '''
             if SHOW_3D_NOW:
