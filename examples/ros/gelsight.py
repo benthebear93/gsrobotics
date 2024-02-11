@@ -4,8 +4,7 @@ import cv2
 import os
 import open3d
 import copy
-# from gelsight import gsdevice
-# from gelsight import gs3drecon
+
 import rospy
 from sensor_msgs.msg import PointCloud2
 import std_msgs.msg
@@ -26,13 +25,6 @@ import find_marker
 
 from std_msgs.msg import Float64
 
-def get_diff_img(img1, img2):
-    return np.clip((img1.astype(int) - img2.astype(int)), 0, 255).astype(np.uint8)
-
-
-def get_diff_img_2(img1, img2):
-    return (img1 * 1.0 - img2) / 255. + 0.5
-
 def resize_crop_mini(img, imgw, imgh):
     # resize, crop and resize back
     img = cv2.resize(img, (895, 672))  # size suggested by janos to maintain aspect ratio
@@ -47,16 +39,15 @@ def trim(img):
     img[img>255] = 255
 
 
-
 def compute_tracker_gel_stats(thresh):
-    numcircles = 9 * 7;
-    mmpp = .063;
-    true_radius_mm = .5;
-    true_radius_pixels = true_radius_mm / mmpp;
+    numcircles = 9 * 7
+    mmpp = .063
+    true_radius_mm = .5
+    true_radius_pixels = true_radius_mm / mmpp
     circles = np.where(thresh)[0].shape[0]
-    circlearea = circles / numcircles;
-    radius = np.sqrt(circlearea / np.pi);
-    radius_in_mm = radius * mmpp;
+    circlearea = circles / numcircles
+    radius = np.sqrt(circlearea / np.pi)
+    radius_in_mm = radius * mmpp
     percent_coverage = circlearea / (np.pi * (true_radius_pixels) ** 2);
     return radius_in_mm, percent_coverage*100.
 
@@ -82,11 +73,16 @@ def main(argv):
 
     # Set flags
     SAVE_VIDEO_FLAG = True
-    GPU = False
+    GPU = True
     MASK_MARKERS_FLAG = True
-    USE_ROI = False
     PUBLISH_ROS_PC = True
     SHOW_3D_NOW = False
+    print("SAVE VIDEO FLAG : ", SAVE_VIDEO_FLAG)
+    print("GPU FLAG : ", GPU)
+    print("MASK_MARKERS_FLAG : ", MASK_MARKERS_FLAG)
+    print("PUBLISH_ROS_PC : ", PUBLISH_ROS_PC)
+    print("SHOW_3D_NOW : ", SHOW_3D_NOW)
+    
     # Path to 3d model
     path = '.'
 
@@ -96,8 +92,6 @@ def main(argv):
     # This is meters per pixel that is used for ros visualization
     mpp = mmpp / 1000.
 
-    # the device ID can change after chaning the usb ports.
-    # on linux run, v4l2-ctl --list-devices, in the terminal to get the device ID for camera
     dev = gsdevice.Camera("GelSight Mini")
     net_file_path = '../nnmini.pt'
 
@@ -106,7 +100,6 @@ def main(argv):
     ''' Load neural network '''
     model_file_path = path
     net_path = os.path.join(model_file_path, net_file_path)
-    print('net path = ', net_path)
 
     if GPU:
         gpuorcpu = "cuda"
@@ -117,12 +110,8 @@ def main(argv):
     net = nn.load_nn(net_path, gpuorcpu)
 
     f0 = dev.get_raw_image()
-    print("fo shape, dev w, h", f0.shape, dev.imgw, dev.imgh)
-    #for i in range(NUM_SENSORS):
-    #    gs['gsmini_pub'][i] = rospy.Publisher("/gsmini_rawimg_{}".format(i), Image, queue_size=1)
-    #    gs['vs'][i] = WebcamVideoStream(src=2*i).start()  # make sure the id numbers of the cameras are ones recognized by the computer. Default, 2 and 4
-
-
+    print(f"DEVICE shape : {f0.shape} w : {dev.imgw}, h : {dev.imgh}")
+    
     if SAVE_VIDEO_FLAG:
         #### Below VideoWriter object will create a frame of above defined The output is stored in 'filename.avi' file.
         file_path = './3dnnlive.mov'
@@ -142,18 +131,7 @@ def main(argv):
         gelpcd = open3d.geometry.PointCloud()
         gelpcd.points = open3d.utility.Vector3dVector(points)
         gelpcd_pub = rospy.Publisher("/gsmini_pcd", PointCloud2, queue_size=10)
-
-    if USE_ROI:
-        roi = cv2.selectROI(f0)
-        roi_cropped = f0[int(roi[1]):int(roi[1] + roi[3]), int(roi[0]):int(roi[0] + roi[2])]
-        cv2.imshow('ROI', roi_cropped)
-        print('Press q in ROI image to continue')
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        print('roi = ', roi)
-
-        print('press q on image to exit')
-
+        
     cvbridge = CvBridge()
     for i in range(NUM_SENSORS):
         gs['gsmini_pub'][i] = rospy.Publisher("/gsmini_rawimg_{}".format(i), Image, queue_size=1)
@@ -163,25 +141,22 @@ def main(argv):
     gs['gsmini_depth_img_pub_l'][0] = rospy.Publisher("/gsmini_depth_img_l", Image, queue_size=1)
     gs_max_z_pub = rospy.Publisher("/gsmini_max_z", Float64, queue_size=1)
     gs_max_z_msg = 0
-    #Marker tracking
-    # Resize scale for faster image processing
+
     setting.init()
     frame0 = None
     counter = 0
 
-    print('DONE')
+    calibration_number = 500
+    print('DONE Calibration start , Calibration number : ', calibration_number)
     while 1:
-        if counter<50:
+        if counter<calibration_number:
             ret,frame = dev.get_image_two()
-            print ('flush black imgs')
+            # print ('flush black imgs')
 
-            if counter == 48:
+            if counter == calibration_number-2:
                 ret, frame = dev.get_image_two()
-                ##########################
                 frame = resize_crop_mini(frame, dev.imgw, dev.imgh)
-                ### find marker masks
                 mask = marker_detection.find_marker(frame)
-                ### find marker centers
                 mc = marker_detection.marker_center(mask, frame)
                 break
 
@@ -225,29 +200,25 @@ def main(argv):
         rate = rospy.Rate(30)
         while not rospy.is_shutdown():
             # get the roi image
-            f1 = dev.get_image()
+            roi_frame = dev.get_image()
 
-            ret, frame = dev.get_image_two()
+            ret, ori_frame = dev.get_image_two()
             if not(ret):
                 break
 
             '''maker tracking '''
-            print("dev w, h", dev.imgw, dev.imgh)
-            frame = resize_crop_mini(frame, dev.imgw, dev.imgh)
-            raw_img = copy.deepcopy(frame)
+            ori_frame = resize_crop_mini(ori_frame, dev.imgw, dev.imgh)
+            raw_img = copy.deepcopy(ori_frame)
 
             ''' EXTRINSIC calibration ... 
             ... the order of points [x_i,y_i] | i=[1,2,3,4], are same 
             as they appear in plt.imshow() image window. Put them in 
             clockwise order starting from the topleft corner'''
-            # frame = warp_perspective(frame, [[35, 15], [320, 15], [290, 360], [65, 360]], output_sz=frame.shape[:2])   # params for small dots
-            # frame = warp_perspective(frame, [[180, 130], [880, 130], [800, 900], [260, 900]], output_sz=(640,480)) # org. img size (1080x1080)
-
             ### find marker masks
-            mask = marker_detection.find_marker(frame)
+            mask = marker_detection.find_marker(ori_frame)
 
             ### find marker centers
-            mc = marker_detection.marker_center(mask, frame)
+            mc = marker_detection.marker_center(mask, ori_frame)
 
             if calibrate == False:
                 tm = time.time()
@@ -268,31 +239,14 @@ def main(argv):
                 flow = m.get_flow()
 
                 if frame0 is None:
-                    frame0 = frame.copy()
+                    frame0 = ori_frame.copy()
                     frame0 = cv2.GaussianBlur(frame0, (int(63), int(63)), 0)
-
-                # diff = (frame * 1.0 - frame0) * 4 + 127
-                # trim(diff)
-
                 # # draw flow
-                marker_detection.draw_flow(frame, flow)
+                marker_detection.draw_flow(ori_frame, flow)
 
                 frameno = frameno + 1
-
-                # if SAVE_DATA_FLAG:
-                #     Ox, Oy, Cx, Cy, Occupied = flow
-                #     for i in range(len(Ox)):
-                #         for j in range(len(Ox[i])):
-                #             datafile.write(
-                #                f"{frameno}, {i}, {j}, {Ox[i][j]:.2f}, {Oy[i][j]:.2f}, {Cx[i][j]:.2f}, {Cy[i][j]:.2f}\n")
-
-            #mask_img = mask.astype(frame[0].dtype)
             mask_img = np.asarray(mask)
-            #print(np.shape(mask))
-            bigframe_marker = cv2.resize(frame, (frame.shape[1] * 3, frame.shape[0] * 3))
-            #cv2.imshow('frame', bigframe_marker)
-            #bigmask = cv2.resize(mask_img * 255, (mask_img.shape[1] * 3, mask_img.shape[0] * 3))
-            #cv2.imshow('mask', bigmask)
+            bigframe_marker = cv2.resize(ori_frame, (ori_frame.shape[1] * 3, ori_frame.shape[0] * 3))
 
             ''' publish maker image to ros '''
             for i in range(NUM_SENSORS):
@@ -303,30 +257,22 @@ def main(argv):
 
 
             ''' publish image to ros '''
-            bigframe = cv2.resize(f1, (dev.imgw,dev.imgh))
-            f_stream = f1
+            bigframe = cv2.resize(roi_frame, (dev.imgw,dev.imgh))
+            f_stream = roi_frame
             f_stream = cv2.resize(f_stream, (dev.imgw,dev.imgh))
             #cv2.imshow('Image', f_stream)
 
             for i in range(NUM_SENSORS):
-                print(f_stream.shape)
                 gs['img_msg'][i] = cvbridge.cv2_to_imgmsg(f_stream, encoding="passthrough")
                 gs['img_msg'][i].header.stamp = rospy.Time.now()
                 gs['img_msg'][i].header.frame_id = 'map'
-                # print(gs['img_msg'][i])
                 gs['gsmini_pub'][i].publish(gs['img_msg'][i])
 
-            if USE_ROI:
-                f1 = f1[int(roi[1]):int(roi[1] + roi[3]), int(roi[0]):int(roi[0] + roi[2])]
-
             #compute the depth map
-            dm = nn.get_depthmap(f1, MASK_MARKERS_FLAG)
-            #bigframe_dm = cv2.resize(dm*255, (dev.imgw,dev.imgh))
-            # cv2.imshow('Image', dm)
+            dm = nn.get_depthmap(roi_frame, MASK_MARKERS_FLAG)
 
             dm_image = (-dm).astype(np.uint8)
-            #im = bridge.cv2_to_imgmsg(image, encoding="mono8")
-
+            dm_image = cv2.resize(dm_image, (dev.imgw, dev.imgh))
             gs['gsmini_depth_img_msg_l'][0] = cvbridge.cv2_to_imgmsg(dm_image, encoding="mono8")
             gs['gsmini_depth_img_msg_l'][0].header.stamp = rospy.Time.now()
             gs['gsmini_depth_img_msg_l'][0].header.frame_id = 'map'
@@ -365,14 +311,10 @@ def main(argv):
                 gs_max_z_msg = np.max(xyz_array[:,2])
                 gs_max_z_pub.publish(gs_max_z_msg)
 
-                #print(type(xyz_array))
-                #print('MAX Z:: ',np.max(xyz_array[:,2]))
-                #np.shape(xyz_array)
-
             #if cv2.waitKey(1) & 0xFF == ord('q'):
             #    break
             if SAVE_VIDEO_FLAG:
-                out.write(f1)
+                out.write(roi_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                break

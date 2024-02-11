@@ -16,11 +16,11 @@ def find_marker(gray):
     # dilation = cv2.dilate(mask, kernel, iterations=1)
     return mask
 
-def dilate(img, ksize=5, iter=1):
+def dilate(img, ksize=3, iter=1):
     kernel = np.ones((ksize, ksize), np.uint8)
     return cv2.dilate(img, kernel, iterations=iter)
 
-def erode(img, ksize=5):
+def erode(img, ksize=10):
     kernel = np.ones((ksize, ksize), np.uint8)
     return cv2.erode(img, kernel, iterations=1)
 

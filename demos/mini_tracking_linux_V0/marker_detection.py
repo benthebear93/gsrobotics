@@ -211,9 +211,8 @@ def draw_flow(frame, flow):
     dx = np.mean(np.abs(np.asarray(Ox) - np.asarray(Cx)))
     dy = np.mean(np.abs(np.asarray(Oy) - np.asarray(Cy)))
     dnet = np.sqrt(dx**2 + dy**2)
-    print (dnet * 0.075, '\n')
-
-
+    # print (dnet * 0.075, '\n')
+    
     K = 1
     for i in range(len(Ox)):
         for j in range(len(Ox[i])):

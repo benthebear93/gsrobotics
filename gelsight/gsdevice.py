@@ -81,8 +81,8 @@ class Camera:
         self.cam = cv2.VideoCapture(self.dev_id)
         if self.cam is None or not self.cam.isOpened():
             print('Warning: unable to open video source: ', self.dev_id)
-        self.imgw = 240
-        self.imgh = 320
+        self.imgw = 320
+        self.imgh = 240
 
         return self.cam
 

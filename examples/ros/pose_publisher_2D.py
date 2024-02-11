@@ -27,120 +27,126 @@ def rotate_vector(vector, angle_rad):
                                 [np.sin(angle_rad), np.cos(angle_rad)]])
     return np.dot(rotation_matrix, vector)
 
+def erode(img, ksize=10):
+    kernel = np.ones((ksize, ksize), np.uint8)
+    return cv2.erode(img, kernel, iterations=1)
+
+def dilate(img, ksize=3, iter=1):
+    kernel = np.ones((ksize, ksize), np.uint8)
+    return cv2.dilate(img, kernel, iterations=iter)
+
 class PosePublisher2D:
     def __init__(self) -> None:
+        self.debugging_flag = False
         self._dimg_l = None
-        # self._dimg_r = None
         self._depth_threshold = 240
         self._pos_l = [0.0, 0.0]
         self._ori_l = 0.0
         self._bridge = CvBridge()
-
-        self._sub_pc_l = rospy.Subscriber("/gsmini_depth_img_l", Image, callback=self.sub_cb_l, queue_size=1)
-        # self._sub_pc_r = rospy.Subscriber("/gsmini_depth_img_r", Image, callback=self.sub_cb_r, queue_size=1)s
-        self._sub_2d_pose_pub = rospy.Subscriber("/gsmini_depth_img_l", Image, callback=self.pub_cb, queue_size=1)
-        
+        self.centroid = (0, 0)
+        self.normal1 = self.normal2 = [0, 0]
+        self.ori = [0]
+        self.legnth = [0, 0]
+        self._sub_raw_img = rospy.Subscriber("/gsmini_rawimg_0", Image, callback=self.raw_img_show, queue_size=10) 
+        self._sub_pc_l = rospy.Subscriber("/gsmini_depth_img_l", Image, callback=self.left_depth_callback, queue_size=1)
         self._pub_2d_l = rospy.Publisher("/gsmini_2d_pose", Pose2D, queue_size=1)
-        # self._pub_2d_r = rospy.Publisher("/gsmini_2d_pose", Pose2D)
 
-    def sub_cb_l(self, data: Image) -> None:
+    def left_depth_callback(self, data: Image) -> None:
         if data is not None:
             self._dimg_l = self._bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
-            _, self._dimg_l = cv2.threshold(self._dimg_l, self._depth_threshold, 255, cv2.THRESH_BINARY)
+        
+        self.centroid, self.normal1, self.normal2 = self.get_2d_pose(self.erode_dimg_l)
 
-    # def sub_cb_r(self, data: Image) -> None: 
-    #     self._dimg_r = self._bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
+        self.pose2d = Pose2D()
+        self.pose2d.theta = 0
+        self.pose2d.x, self.pose2d.y = self.centroid[0], self.centroid[1]
+        self._pub_2d_l.publish(self.pose2d)
 
-    def _got_img(self):
-        return True if self._dimg_l is not None else False
+    def raw_img_show(self, data: Image) -> None:
+        self._raw_img = self._bridge.imgmsg_to_cv2(data)
+        self._raw_img = np.array(self._raw_img)
+        self._raw_img_to_gray_scale = cv2.cvtColor(self._raw_img, cv2.COLOR_BGR2GRAY)
+        ret, thresh = cv2.threshold(self._raw_img_to_gray_scale, 70, 255, 0)
 
-    def _in_contact(self):
-        coordinates = np.column_stack(np.where(self._dimg_l > self._depth_threshold))
-        return True if len(coordinates) != 0 else False
+        cv2.circle(self._raw_img, self.centroid, 5, (0, 255, 0)) 
+        if self.debugging_flag == True:
+            if self._raw_img is None or self._dimg_l is None:
+                print("Image waiting...")
+            elif self._raw_img.size == 0 or self._dimg_l.size == 0:
+                print("Error: One of the images is empty.")
+            else:
+                print(f"raw img : {self._raw_img.shape} thres img : {self._dimg_l.shape}")
+        else:
+            pass
+        self.erode_dimg_l = erode(self._dimg_l, 20)
+        self.dilate_dimg_l = dilate(self.erode_dimg_l, 10)
 
-    def pub_cb(self, data: Image) -> None:
-
-        if not self._got_img():
-            return
-
-        if not self._in_contact():
-            return
-
-        # if  self._dimg_r is None and self._dimg_r is None:
-        if self._dimg_l.flags.writeable is False:
-            self._dimg_l = np.copy(self._dimg_l)
-
-        # test = self.get_2d_pose(self._dimg_l)
-        pos, ori = self.get_2d_pose(self._dimg_l)
-
-        pose2d = Pose2D()
-        pose2d.theta = ori
-        pose2d.x, pose2d.y = pos[0], pos[1]
-        self._pub_2d_l.publish(pose2d)
-
-        # cv2.imwrite("test_0.png", self._dimg_l)
-        # self._dimg_l = cv2.cvtColor(self._dimg_l, cv2.COLOR_GRAY2BGR)
-        # self._dimg_l = self.draw_pose(self._dimg_l, pos, ori)
-        # cv2.waitKey(100)
-        # cv2.imshow("test", self._dimg_l)
-        # cv2.imwrite("test_1.png", self._dimg_l)
+        self.draw_pose(self._raw_img, self.centroid)
+        cv2.imshow("_raw_img", self._raw_img)
+        cv2.imshow("thres", self._dimg_l)
+        cv2.imshow("erode_dimg_l", self.erode_dimg_l)
+        cv2.waitKey(1)
 
     def get_2d_pose(self, dimg: np.ndarray) -> Tuple[np.ndarray, float]:
 
         _, thresholded_image = cv2.threshold(dimg, self._depth_threshold, 255, cv2.THRESH_BINARY)
-
-        # Find the coordinates of pixels below the threshold
+        self.image = thresholded_image
+        # # Find the coordinates of pixels below the threshold
         coordinates = np.column_stack(np.where(thresholded_image > self._depth_threshold))
+        if coordinates.size < 10:
+            # print("Error: No coordinates found. The condition was not met by any element.")
+            centroid = [0, 0]
+        else:
+            print("Coordinates found and processing can continue.")
+            print("Size : ", coordinates.size)
+            # Instantiate the PCA model
+            pca = PCA(n_components=2)
+            # Fit the model to your data
+            pca.fit(coordinates)
+            eig_vec = pca.components_
+            self.legnth = np.sqrt(pca.explained_variance_)
+            # self.lenght = pca.explained_variance_
+            self.normal1 = eig_vec[0, :]
+            self.normal2 = eig_vec[1, :]
+            centroid = np.mean(coordinates, axis=0)
+            centroid = [int(centroid[1]), int(centroid[0])]
+            print("centroid:", centroid)
+            print("eig_vec", eig_vec)
+            
+            print(f"normal1 : {self.normal1}")
+            print(f"normal2 : {self.normal2}")
+        return tuple(centroid), self.normal1, self.normal2
 
-        pos = [ int(np.mean(coordinates[:,0])), int(np.mean(coordinates[:,1])) ]
-        # Instantiate the PCA model
-        pca = PCA(n_components=2)
-    
-        # Fit the model to your data
-        pca.fit(coordinates)
-    
-        arrow_length = 40
+    def draw_pose(self,img, pos):
+        cv2.circle(img, pos, 5, (0, 255, 0), -1)  # Green color, thickness=-1 to fill the circle
 
-        # compute position and orientation
-        first_component = pca.components_[0]
-        d = [int(pos[0] + first_component[0]), int(pos[1] + first_component[1])]
-        x_axis = (
-            int(pos[0] + arrow_length ),
-            int(pos[1] )
+        # Calculate the arrow end point based on orientation
+        arrow_length = 2
+        if(self.legnth[1] > self.legnth[0]):
+            a = 40
+            b = 20
+        else:
+            a = 20
+            b = 40
+        
+        first_component = (
+            int(pos[0] + b * self.normal1[1]),
+            int(pos[1] + b * self.normal1[0])
         )
-        ori = -angle(v1 = x_axis, v2 = d)
-        # print(pos, x_axis, d, first_component,ori)
 
-        return tuple(pos), ori
+        second_component = (
+            int(pos[0] + a * self.normal2[1]),
+            int(pos[1] + a * self.normal2[0])
+        )
+        # Draw the arrow lines
+        cv2.arrowedLine(img, pos, first_component, (0, 0, 255), 2)  # Red color, thickness=2
+        cv2.arrowedLine(img, pos, second_component, (255, 0, 0), 2)  # Blue color, thickness=2
 
-    # def draw_pose(self,img, pos, ori):
-    #     cv2.circle(img, pos, 5, (0, 255, 0), -1)  # Green color, thickness=-1 to fill the circle
-
-    #     # Calculate the arrow end point based on orientation
-    #     arrow_length = 40
-    #     # -52.4114929 deg
-    #     # 1.57
-    #     arrow_angle = -ori  # Reverse the angle for counter-clockwise direction
-    #     # arrow_angle = -0.785398163  # Reverse the angle for counter-clockwise direction
-    #     # arrow_angle = -0.914753116278168  # Reverse the angle for counter-clockwise direction
-    #     pc = (
-    #         int(pos[0] + arrow_length * np.cos(arrow_angle)),
-    #         int(pos[1] + arrow_length * np.sin(arrow_angle))
-    #     )
-
-    #     x_axis = (
-    #         int(pos[0] + arrow_length ),
-    #         int(pos[1] )
-    #     )
-
-    #     # Draw the arrow lines
-    #     cv2.arrowedLine(img, pos, pc, (0, 0, 255), 2)  # Red color, thickness=2
-    #     cv2.arrowedLine(img, pos, x_axis, (255, 0, 0), 2)  # Blue color, thickness=2
-
-    #     return img
+        return img
 
 def main():
     rospy.init_node("pose_publisher_2D")
+    rospy.loginfo("Pose estimator start")
     pp2d = PosePublisher2D()
     rospy.spin()
 

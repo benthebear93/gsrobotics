@@ -106,15 +106,17 @@ if __name__ == '__main__':
 
     for i in range(NUM_SENSORS):
         gs['gsmini_pub'][i] = rospy.Publisher("/gsmini_rawimg_{}".format(i), Image, queue_size=1)
-        gs['vs'][i] = WebcamVideoStream(src=2*i).start() # make sure the id numbers of the cameras are ones recognized by the computer. Default, 2 and 4
+        gs['vs'][i] = WebcamVideoStream(4).start() # make sure the id numbers of the cameras are ones recognized by the computer. Default, 2 and 4
 
     r = rospy.Rate(25)  # 10hz
     while not rospy.is_shutdown():
-
+        
         for i in range(NUM_SENSORS):
             gs['img'][i] = gs['vs'][i].read()
             gs['img'][i] = cv2.resize(gs['img'][i], (imgw,imgh))
             #gs['img'][i] = chop_border_resize(gs['img'][i])
+            print(gs['img'][i])
+            print(gs['img'][i].shape)
             cv2.imshow('gsmini{}'.format(i), gs['img'][i])
 
         print ('.. hit ESC to exit! .. ')

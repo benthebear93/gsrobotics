@@ -16,11 +16,11 @@ def find_marker(gray):
     # dilation = cv2.dilate(mask, kernel, iterations=1)
     return mask
 
-def dilate(img, ksize=5, iter=1):
+def dilate(img, ksize=3, iter=1):
     kernel = np.ones((ksize, ksize), np.uint8)
     return cv2.dilate(img, kernel, iterations=iter)
 
-def erode(img, ksize=5):
+def erode(img, ksize=10):
     kernel = np.ones((ksize, ksize), np.uint8)
     return cv2.erode(img, kernel, iterations=1)
 
@@ -323,12 +323,12 @@ class Reconstruction3D:
         # cv2.imshow('dm',dm)
 
         ''' remove initial zero depth '''
-        if self.dm_zero_counter < 50:
+        if self.dm_zero_counter < 100:
             self.dm_zero += dm
             print ('zeroing depth. do not touch the gel!')
-            if self.dm_zero_counter == 49:
+            if self.dm_zero_counter == 99:
                 self.dm_zero /= self.dm_zero_counter
-        if self.dm_zero_counter == 50:
+        if self.dm_zero_counter == 100:
             print ('Ok to touch me now!')
         self.dm_zero_counter += 1
         dm = dm - self.dm_zero
