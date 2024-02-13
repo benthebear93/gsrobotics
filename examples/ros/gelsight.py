@@ -109,7 +109,7 @@ def main(argv):
     nn = gs3drecon.Reconstruction3D(dev)
     net = nn.load_nn(net_path, gpuorcpu)
 
-    f0 = dev.get_raw_image()
+    f0 = dev.get_raw_image() #  320 X 240
     print(f"DEVICE shape : {f0.shape} w : {dev.imgw}, h : {dev.imgh}")
     
     if SAVE_VIDEO_FLAG:
@@ -146,7 +146,7 @@ def main(argv):
     frame0 = None
     counter = 0
 
-    calibration_number = 500
+    calibration_number = 50
     print('DONE Calibration start , Calibration number : ', calibration_number)
     while 1:
         if counter<calibration_number:
@@ -156,6 +156,7 @@ def main(argv):
             if counter == calibration_number-2:
                 ret, frame = dev.get_image_two()
                 frame = resize_crop_mini(frame, dev.imgw, dev.imgh)
+                # print("2. frame image shpae :", frame)
                 mask = marker_detection.find_marker(frame)
                 mc = marker_detection.marker_center(mask, frame)
                 break
@@ -201,13 +202,15 @@ def main(argv):
         while not rospy.is_shutdown():
             # get the roi image
             roi_frame = dev.get_image()
-
-            ret, ori_frame = dev.get_image_two()
+            # print("roi  fradme shape : ", roi_frame.shape) # 240, 320, 3
+            ret, ori_frame = dev.get_image_two() # 2464, 3280, 3
+            # print("Ori fradme shape : ", ori_frame.shape) 
             if not(ret):
                 break
 
             '''maker tracking '''
             ori_frame = resize_crop_mini(ori_frame, dev.imgw, dev.imgh)
+            # print("croped ori  fradme shape : ", ori_frame.shape) # 240, 320, 3
             raw_img = copy.deepcopy(ori_frame)
 
             ''' EXTRINSIC calibration ... 
@@ -260,10 +263,11 @@ def main(argv):
             bigframe = cv2.resize(roi_frame, (dev.imgw,dev.imgh))
             f_stream = roi_frame
             f_stream = cv2.resize(f_stream, (dev.imgw,dev.imgh))
+            # print("f stream shape: ", f_stream.shape) # 240 x320
             #cv2.imshow('Image', f_stream)
 
             for i in range(NUM_SENSORS):
-                gs['img_msg'][i] = cvbridge.cv2_to_imgmsg(f_stream, encoding="passthrough")
+                gs['img_msg'][i] = cvbridge.cv2_to_imgmsg(roi_frame, encoding="passthrough")
                 gs['img_msg'][i].header.stamp = rospy.Time.now()
                 gs['img_msg'][i].header.frame_id = 'map'
                 gs['gsmini_pub'][i].publish(gs['img_msg'][i])

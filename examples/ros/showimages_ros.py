@@ -78,13 +78,10 @@ class WebcamVideoStream :
     def __exit__(self, exc_type, exc_value, traceback) :
         self.stream.release()
 
-
 def chop_border_resize(img):
     img = img[chop_border_size:imgh - chop_border_size, chop_border_size:imgw - chop_border_size]
     img = cv2.resize(img, (imgw, imgh))
     return img
-
-
 
 if __name__ == '__main__':
 

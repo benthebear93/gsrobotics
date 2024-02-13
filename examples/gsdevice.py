@@ -76,7 +76,7 @@ class Camera:
         self.while_condition = 1
 
     def connect(self):
-
+        print("Running example - gelsight.py?")
         # The camera in Mini is a USB camera and uses open cv to get the video data from the streamed video
         self.cam = cv2.VideoCapture(self.dev_id)
         if self.cam is None or not self.cam.isOpened():

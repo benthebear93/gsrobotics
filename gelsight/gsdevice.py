@@ -60,7 +60,7 @@ def resize_crop_mini(img, imgw, imgh):
     # keep the ratio the same as the original image size
     img = img[border_size_x+2:img.shape[0] - border_size_x, border_size_y:img.shape[1] - border_size_y]
     # final resize for 3d
-    img = cv2.resize(img, (imgw, imgh))
+    img = cv2.resize(img, (imgh, imgw)) # 320 X 240
     return img
 
 
@@ -70,13 +70,13 @@ class Camera:
         self.data = None
         self.name = dev_type
         self.dev_id = get_camera_id(dev_type)
-        self.imgw = 320 # this is for R1, R1.5 is 240
-        self.imgh = 240 # this is for R1, R1.5 is 320
+        self.imgw = 240 # this is for R1, R1.5 is 240
+        self.imgh = 320 # this is for R1, R1.5 is 320
         self.cam = None
         self.while_condition = 1
 
     def connect(self):
-
+        print("Running gelsight - gelsight.py?")
         # The camera in Mini is a USB camera and uses open cv to get the video data from the streamed video
         self.cam = cv2.VideoCapture(self.dev_id)
         if self.cam is None or not self.cam.isOpened():
@@ -90,8 +90,10 @@ class Camera:
         for i in range(10): ## flush out fist 100 frames to remove black frames
             ret, f0 = self.cam.read()
         ret, f0 = self.cam.read()
+        print("raw image read shpae :", f0.shape) # (2464, 3280, 3)
+        # f0 = cv2.resize(f0, (616, 820))
         if ret:
-            f0 = resize_crop_mini(f0,self.imgh,self.imgw)
+            f0 = resize_crop_mini(f0,self.imgw,self.imgh)
         else:
             print('ERROR! reading image from camera')
 
