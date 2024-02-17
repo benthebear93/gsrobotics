@@ -55,11 +55,11 @@ class PosePublisher2D:
     #         self._pub_object_orietation.publish(self._pose_data)
 
     def pca_callback(self, data):
-        # print("callback2")
+        print("callback2")
         self.vectors = data.data
         
     def raw_img_show(self, data: Image) -> None:
-        # print("call back 1")
+        print("call back 1")
         self._raw_img = self._bridge.imgmsg_to_cv2(data)
         self._raw_img = np.array(self._raw_img)
         
@@ -118,38 +118,51 @@ class PosePublisher2D:
     #     return tuple(self.centroid), self.vecotr1, self.vecotr2
     
     def draw_pose(self,img):
+        print("draw pose?")
         RAD2DEG = 180 / math.pi
         DEG2RAD = math.pi / 180
         mm2m = 1/1000
-        arrow_lenght = 50
-        goal_theta = 135
-        goal_y = arrow_lenght*math.cos(180 - goal_theta)
-        goal_x = arrow_lenght*math.sin(180 - goal_theta)
-        print(goal_x, goal_y)
-        cv2.circle(img, (int(self.vectors[0]), int(self.vectors[1])), 5, (0, 0, 255), -1)  # blue big X
-        cv2.circle(img, (int(self.vectors[2]), int(self.vectors[3])), 5, (255, 0, 0), -1)  # red Small X
+        arrow_lenght = 30
+        goal_theta = 45
+        goal_x = 0
+        goal_y = 0
+        if goal_theta > 90:
+            goal_x = -arrow_lenght*math.cos(goal_theta*DEG2RAD)
+            goal_y = arrow_lenght*math.cos(goal_theta*DEG2RAD)
+        else:
+            goal_x = arrow_lenght*math.cos(goal_theta*DEG2RAD)
+            goal_y = arrow_lenght*math.cos(goal_theta*DEG2RAD)
+        
+        
+        print("vectors", int(self.vectors[0]), int(self.vectors[1]), int(self.vectors[2])
+              , int(self.vectors[3]), int(self.vectors[4]), int(self.vectors[5]))
+        # print("goal x , goal_y", goal_x, goal_y)
+        cv2.circle(img, (int(self.vectors[0]), int(self.vectors[1])), 5, (0, 0, 255), -1)  # red big X
+        cv2.circle(img, (int(self.vectors[2]), int(self.vectors[3])), 5, (255, 0, 0), -1)  # blue Small X
         cv2.circle(img, (int(self.vectors[4]), int(self.vectors[5])), 5, (0, 255, 0), -1)  # green center
         
-        cv2.circle(img, (int(self.vectors[4] +2*goal_x), int(2*goal_y)), 5, (255, 255, 255), -1)  # green center
+        cv2.circle(img, (int(self.vectors[4] +goal_x), int(self.vectors[5] + goal_y)), 5, (255, 255, 255), -1)  # green center
         cv2.circle(img, (int(self.vectors[4]), int(self.vectors[5])), 5, (255, 255, 255), -1)  # green center
-        cv2.line(img, (int(self.vectors[4] + 2*goal_x), int(2*goal_y)), (int(self.vectors[4]), int(self.vectors[5])), (255, 255, 255), thickness=2)
-        print("red : ", (int(self.vectors[0]), int(self.vectors[1])))
-        print("blue : ", (int(self.vectors[2]), int(self.vectors[3])))
-        print("center : ", (int(self.vectors[4]), int(self.vectors[5])))
         
-        smallx = [int(self.vectors[2]), int(self.vectors[3])]
-        bigx = [int(self.vectors[4]), int(self.vectors[5])]
+        cv2.line(img, (int(self.vectors[4] + goal_x), int(self.vectors[5] + goal_y)), (int(self.vectors[4]), int(self.vectors[5])), (255, 255, 255), thickness=2)
+        
+        red = [int(self.vectors[0]), int(self.vectors[1])]
+        blue = [int(self.vectors[2]), int(self.vectors[3])]
+        center = [int(self.vectors[4]), int(self.vectors[5])]
 
-        if smallx[1] > bigx[1]: # theta2
+        if blue[1] < center[1]: # theta2
+            print("blus y : ", blue[1], "center y : ", center[1])
             print("theta2")
-            theta = 3.14159 -math.atan2(smallx[1], (bigx[0] - smallx[0]))
+            theta = 90* DEG2RAD + math.atan2((blue[0] - red[0]), (red[1] - blue[1])) 
         else:
             print("theta1")
-            theta = math.atan2((bigx[1]-smallx[1]), (bigx[0] - smallx[0]))
-        print("Sensor data" , theta)
+            print("dx", blue[0]-red[0])
+            print("dy", blue[1]-red[1])
+            theta = math.atan2((blue[1] - red[1]), (blue[0] - red[0]))
+        print("Sensor data " , theta, "[RAD]")
         self._pose_data.data = theta*RAD2DEG
         self._pub_object_orietation.publish(self._pose_data)
-        print(theta*RAD2DEG)
+        print("Sensor data " , theta*RAD2DEG, "[DEG]")
         # cv2.arrowedLine(img, pos, tuple(self.vecotr1), (0, 0, 255), 2)  
         # cv2.arrowedLine(img, pos, tuple(self.vecotr2), (255, 0, 0), 2) 
 
