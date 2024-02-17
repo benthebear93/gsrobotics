@@ -32,7 +32,7 @@ class PosePublisher2D:
         self._sub_raw_img = rospy.Subscriber("/left_gs/rgb/image_raw", Image, callback=self.raw_img_show, queue_size=10) 
         self._sub_pca = rospy.Subscriber("/left_gs/pca/value", Float32MultiArray, callback=self.pca_callback, queue_size=10) 
         # self._sub_pc_l = rospy.Subscriber("/gsmini_depth_img_l", Image, callback=self.depth_callback, queue_size=1)
-        self._pub_object_orietation = rospy.Publisher("/sensor_object_theta", Float32, queue_size = 10)
+        self._pub_sensor_object_orietation = rospy.Publisher("/sensor_object_orientation", Float32, queue_size = 10)
         self._pose_data = Float32()
         
     # def depth_callback(self, data: Image) -> None:
@@ -161,7 +161,7 @@ class PosePublisher2D:
             theta = math.atan2((blue[1] - red[1]), (blue[0] - red[0]))
         print("Sensor data " , theta, "[RAD]")
         self._pose_data.data = theta*RAD2DEG
-        self._pub_object_orietation.publish(self._pose_data)
+        self._pub_sensor_object_orietation.publish(self._pose_data)
         print("Sensor data " , theta*RAD2DEG, "[DEG]")
         # cv2.arrowedLine(img, pos, tuple(self.vecotr1), (0, 0, 255), 2)  
         # cv2.arrowedLine(img, pos, tuple(self.vecotr2), (255, 0, 0), 2) 
